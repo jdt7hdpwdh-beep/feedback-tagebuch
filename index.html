@@ -126,6 +126,12 @@ input[type="range"] { width: 100%; height: 32px; margin: 0; }
 .btn.secondary { background: transparent; color: var(--muted); border: 1px solid var(--line); }
 .share .btn { padding: 11px 12px; font-size: 0.95rem; }
 #copyFallback { min-height: 160px; font-size: 13px; }
+.backup { gap: 10px; }
+.backup .btn { padding: 11px 12px; font-size: 0.95rem; }
+.backup .hint { margin: 0; }
+.backup-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.backup.due { border-color: var(--accent); background: var(--accent-soft); }
+.backup.due #backupLast { color: var(--accent); font-weight: 600; }
 .ziel { min-height: 0; resize: none; background: transparent; border: 1px dashed var(--line); color: var(--muted); padding: 6px 10px; line-height: 1.35; }
 .ziel:focus { color: var(--ink); border-style: solid; }
 .btn:disabled { opacity: 0.5; }
@@ -307,7 +313,15 @@ input[type="range"] { width: 100%; height: 32px; margin: 0; }
       <button type="button" class="btn" id="btnPdf">📄 Als PDF</button>
       <button type="button" class="btn secondary" id="btnCopy">📋 Text kopieren</button>
     </div>
-    <p class="hint">🔒 Deine Einträge bleiben nur auf diesem Gerät. Sichere sie ab und zu als PDF.</p>
+    <div class="card backup" id="backupHint" hidden>
+      <div class="backup-head"><span class="label">💾 Backup</span><span class="hint" id="backupLast"></span></div>
+      <div class="row">
+        <button type="button" class="btn" id="btnBackup">Backup sichern</button>
+        <button type="button" class="btn secondary" id="btnRestore">Backup laden</button>
+      </div>
+      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+      <p class="hint">🔒 Deine Einträge bleiben nur auf diesem Gerät. Sichere sie in „Dateien“ oder iCloud Drive.</p>
+    </div>
     <textarea id="copyFallback" aria-label="Auswertung als Text" readonly hidden></textarea>
     <div class="stats">
       <div class="stat"><b id="stCount">–</b><span>💬 Feedbacks</span></div>
@@ -830,24 +844,58 @@ $("#btnPdf").addEventListener("click", async () => {
   } finally { btn.disabled = false; }
 });
 
-/* Speicher: alles bleibt im Browser dieses Geräts, nichts geht an einen Server */
+/* Speicher: eine kleine Datenbank (IndexedDB) im Browser dieses Geräts, nichts geht an einen Server */
 const STORE_KEY = "feedback-tagebuch-v1";
-function makeLocalDb() {
-  let data;
+const IDB_NAME = "feedback-tagebuch", IDB_STORE = "daten", IDB_KEY = "alles";
+const BACKUP_TAGE = 7;
+let store = null; // { data, save() }
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    if (!("indexedDB" in window)) return reject(new Error("kein IndexedDB"));
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+const idbTx = (db, mode, fn) => new Promise((resolve, reject) => {
+  const tx = db.transaction(IDB_STORE, mode), req = fn(tx.objectStore(IDB_STORE));
+  tx.oncomplete = () => resolve(req?.result);
+  tx.onerror = tx.onabort = () => reject(tx.error);
+});
+
+// Lädt die Daten; übernimmt beim ersten Start Einträge aus dem alten Speicher (localStorage)
+async function openStore() {
+  const empty = () => ({ feedback: {}, tage: {}, ziel: "", letztesBackup: null });
+  let legacy = null;
+  try { const raw = localStorage.getItem(STORE_KEY); if (raw) legacy = { ...empty(), ...JSON.parse(raw), ziel: localStorage.getItem(STORE_KEY + "-ziel") || "" }; } catch {}
   try {
-    data = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
-    localStorage.setItem(STORE_KEY + "-test", "1"); localStorage.removeItem(STORE_KEY + "-test");
-  } catch { return null; }
-  data.feedback ||= {}; data.tage ||= {};
+    const db = await idbOpen();
+    let data = await idbTx(db, "readonly", s => s.get(IDB_KEY));
+    if (!data) { data = legacy || empty(); await idbTx(db, "readwrite", s => s.put(data, IDB_KEY)); }
+    return { data: { ...empty(), ...data }, save: d => idbTx(db, "readwrite", s => s.put(d, IDB_KEY)) };
+  } catch {
+    // Ersatz, falls IndexedDB fehlt: localStorage
+    try {
+      localStorage.setItem(STORE_KEY + "-test", "1"); localStorage.removeItem(STORE_KEY + "-test");
+      const own = localStorage.getItem(STORE_KEY + "-alles");
+      return { data: own ? { ...empty(), ...JSON.parse(own) } : legacy || empty(), save: async d => localStorage.setItem(STORE_KEY + "-alles", JSON.stringify(d)) };
+    } catch { return null; }
+  }
+}
+
+// Gleiche Schnittstelle wie bisher: collection(...).doc(...).set/delete und onSnapshot
+function makeDb(st) {
   const listeners = { feedback: [], tage: [] };
-  const persist = () => localStorage.setItem(STORE_KEY, JSON.stringify(data));
-  const snap = c => ({ docs: Object.entries(data[c]).map(([id, body]) => ({ id, data: () => body })) });
+  const snap = c => ({ docs: Object.entries(st.data[c]).map(([id, body]) => ({ id, data: () => body })) });
   const emit = c => listeners[c].forEach(cb => cb(snap(c)));
   return {
+    emitAll: () => { emit("feedback"); emit("tage"); },
     collection: c => ({
       doc: (id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8)) => ({
-        set: async body => { data[c][id] = body; persist(); emit(c); },
-        delete: async () => { delete data[c][id]; persist(); emit(c); }
+        set: async body => { st.data[c][id] = body; await st.save(st.data); emit(c); },
+        delete: async () => { delete st.data[c][id]; await st.save(st.data); emit(c); }
       }),
       onSnapshot: cb => { listeners[c].push(cb); cb(snap(c)); return () => {}; }
     })
@@ -856,9 +904,74 @@ function makeLocalDb() {
 
 /* Eigenes Handlungsziel */
 function getZiel() { return $("#ziel").value.trim(); }
-try { $("#ziel").value = localStorage.getItem(STORE_KEY + "-ziel") || ""; } catch {}
-$("#ziel").addEventListener("change", () => {
-  try { localStorage.setItem(STORE_KEY + "-ziel", getZiel()); toast("Ziel gespeichert"); } catch {}
+$("#ziel").addEventListener("change", async () => {
+  if (!store) return;
+  store.data.ziel = getZiel();
+  try { await store.save(store.data); toast("Ziel gespeichert"); } catch { toast("Ziel konnte nicht gespeichert werden."); }
+});
+
+/* Backup: Datei sichern und wieder laden */
+function renderBackupHint() {
+  const box = $("#backupHint");
+  if (!store) { box.hidden = true; return; }
+  const n = Object.keys(store.data.feedback).length + Object.keys(store.data.tage).length;
+  const last = store.data.letztesBackup;
+  const tage = last ? Math.floor((Date.now() - new Date(last)) / 864e5) : null;
+  $("#backupLast").textContent = last ? `Letztes Backup: ${new Date(last).toLocaleDateString("de-DE")}` : "Noch kein Backup";
+  box.classList.toggle("due", n > 0 && (tage == null || tage >= BACKUP_TAGE));
+  box.hidden = false;
+}
+function backupDue() {
+  if (!store) return false;
+  const n = Object.keys(store.data.feedback).length + Object.keys(store.data.tage).length;
+  const last = store.data.letztesBackup;
+  return n > 0 && (!last || (Date.now() - new Date(last)) / 864e5 >= BACKUP_TAGE);
+}
+
+$("#btnBackup").addEventListener("click", async () => {
+  if (!store) return;
+  const payload = { app: "feedback-tagebuch", version: 1, exportiert: new Date().toISOString(),
+    ziel: store.data.ziel, feedback: store.data.feedback, tage: store.data.tage };
+  const name = `Feedback-Tagebuch-Backup-${today()}.json`;
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const file = new File([blob], name, { type: "application/json" });
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      // iPhone: Teilen-Menü → „In Dateien sichern“ (iCloud Drive) oder per Mail
+      await navigator.share({ files: [file], title: "Feedback-Tagebuch Backup" });
+    } else {
+      const url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+    store.data.letztesBackup = new Date().toISOString();
+    await store.save(store.data);
+    renderBackupHint();
+    toast("Backup erstellt");
+  } catch (err) {
+    if (err?.name !== "AbortError") toast("Backup hat nicht geklappt.");
+  }
+});
+
+$("#btnRestore").addEventListener("click", () => $("#restoreFile").click());
+$("#restoreFile").addEventListener("change", async e => {
+  const f = e.target.files?.[0]; e.target.value = "";
+  if (!f || !store) return;
+  try {
+    const b = JSON.parse(await f.text());
+    if (b?.app !== "feedback-tagebuch" || typeof b.feedback !== "object" || typeof b.tage !== "object") throw new Error("falsche Datei");
+    // Zusammenführen: nichts Bestehendes geht verloren, gleiche Einträge kommen aus dem Backup
+    const neu = Object.keys(b.feedback).filter(k => !store.data.feedback[k]).length + Object.keys(b.tage).filter(k => !store.data.tage[k]).length;
+    Object.assign(store.data.feedback, b.feedback);
+    Object.assign(store.data.tage, b.tage);
+    if (!store.data.ziel && b.ziel) { store.data.ziel = b.ziel; $("#ziel").value = b.ziel; }
+    await store.save(store.data);
+    state.db.emitAll();
+    renderBackupHint();
+    toast(neu ? `${neu} Einträge wiederhergestellt` : "Backup geladen – alles war schon da");
+  } catch {
+    toast("Das ist keine Backup-Datei vom Feedback-Tagebuch.");
+  }
 });
 
 /* Start */
@@ -867,22 +980,25 @@ $("#dayDate").value = today();
 loadDay(today());
 renderAll();
 
-(() => {
-  const db = makeLocalDb();
-  if (!db) { $("#dbNotice").hidden = false; return; }
+(async () => {
+  store = await openStore();
+  if (!store) { $("#dbNotice").hidden = false; return; }
+  $("#ziel").value = store.data.ziel || "";
+  const db = makeDb(store);
   state.db = db;
   db.collection("feedback").onSnapshot(snap => {
     state.feedback = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderAll();
-  }, () => { $("#dbNotice").hidden = false; });
+    renderAll(); renderBackupHint();
+  });
   db.collection("tage").onSnapshot(snap => {
     const prev = state.tage;
     state.tage = {};
     snap.docs.forEach(d => { state.tage[d.id] = { datum: d.id, ...d.data() }; });
     const cur = $("#dayDate").value || today();
     if (!prev[cur] && state.tage[cur]) loadDay(cur);
-    renderAll();
-  }, () => { $("#dbNotice").hidden = false; });
+    renderAll(); renderBackupHint();
+  });
+  if (backupDue()) setTimeout(() => toast("💾 Zeit für ein Backup – unter „Verlauf“"), 1200);
 })();
 
 /* Offline-Modus und dauerhafter Speicher */

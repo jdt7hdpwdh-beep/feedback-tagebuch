@@ -1,5 +1,5 @@
 // Offline-Modus: erst Netz (damit Updates ankommen), sonst gespeicherte Kopie.
-const CACHE = "feedback-tagebuch-v1";
+const CACHE = "feedback-tagebuch-v2";
 const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 const PDF_LIB = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
 
