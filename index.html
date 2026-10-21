@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mein Feedback-Tagebuch</title>
+<meta name="description" content="Feedback festhalten, mit dem eigenen Gefühl abgleichen und den Tag benoten. Alle Einträge bleiben auf dem eigenen Gerät.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Feedback">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F6F3F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171214" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: eine Spalte wie eine iPhone-App, unten eine feste Tab-Leiste (Feedback · Tag · Verlauf) */
+:root {
+  --bg: #F6F3F2;
+  --surface: #FFFFFF;
+  --ink: #2A1E21;
+  --muted: #6F6266;
+  --line: #E6DEDD;
+  --accent: #7A1F35;      /* Burgund · Selbstbild */
+  --accent-soft: #F3E4E7;
+  --other: #4F6D8A;       /* Taubenblau · Fremdbild */
+  --other-soft: #E3EAF1;
+  --warn: #B4232F;
+  --font-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --font-body: "Figtree", -apple-system, "Helvetica Neue", system-ui, sans-serif;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171214; --surface: #221B1E; --ink: #F1E9EB; --muted: #A8999D; --line: #3A2F33;
+    --accent: #E07D95; --accent-soft: #3E1F28; --other: #94B3D1; --other-soft: #1F2C38; --warn: #FF7A85;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171214; --surface: #221B1E; --ink: #F1E9EB; --muted: #A8999D; --line: #3A2F33;
+  --accent: #E07D95; --accent-soft: #3E1F28; --other: #94B3D1; --other-soft: #1F2C38; --warn: #FF7A85;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { color-scheme: light; -webkit-text-size-adjust: 100%; padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.wrap { max-width: 560px; margin: 0 auto; padding-block: 20px 120px; display: grid; gap: 20px; }
+
+header { display: grid; gap: 6px; }
+h1 { font-family: var(--font-display); font-size: 1.75rem; line-height: 1.1; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.goal { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.countdown { display: inline-flex; align-items: center; gap: 8px; width: fit-content; font-size: 0.85rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 4px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+
+h2 { font-family: var(--font-display); font-size: 1.25rem; margin: 0; }
+.view { display: grid; gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 12px; }
+.field { display: grid; gap: 8px; }
+label, .label { font-weight: 600; font-size: 0.95rem; }
+.hint { color: var(--muted); font-size: 0.82rem; font-weight: 400; }
+
+input[type="text"], input[type="date"], textarea {
+  width: 100%; font: inherit; font-size: 16px; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+}
+input[type="date"] { min-height: 44px; display: block; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+.field, .card { min-width: 0; }
+textarea { min-height: 84px; resize: vertical; }
+input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: 0.85rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+.faces { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.faces.wide { grid-template-columns: repeat(4, 1fr); }
+.faces.three { grid-template-columns: repeat(3, 1fr); }
+.face { font: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 8px 2px; cursor: pointer; display: grid; justify-items: center; gap: 2px; color: var(--muted); font-size: 0.7rem; }
+.face span:first-child { font-size: 1.7rem; line-height: 1.1; }
+.face[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+.grades { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.grade { font: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 2px 8px; cursor: pointer; display: grid; justify-items: center; gap: 2px; color: var(--ink); }
+.grade b { font-family: var(--font-display); font-size: 1.5rem; line-height: 1; }
+.grade small { font-size: 0.62rem; color: var(--muted); }
+.grade[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.grade[aria-pressed="true"] small { color: var(--surface); }
+
+/* Realitätscheck */
+.slider-row { display: grid; gap: 4px; }
+.slider-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.slider-head output { font-family: var(--font-display); font-size: 1.4rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.self output { color: var(--accent); }
+.other output { color: var(--other); }
+input[type="range"] { width: 100%; height: 32px; margin: 0; }
+.self input[type="range"] { accent-color: var(--accent); }
+.other input[type="range"] { accent-color: var(--other); }
+.scale-ends { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
+.gapbox { border-radius: 10px; background: var(--bg); padding: 12px; display: grid; gap: 10px; }
+.track { position: relative; height: 10px; border-radius: 999px; background: var(--line); }
+.track .span { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, var(--accent-soft), var(--other-soft)); border-radius: 999px; }
+.track .dot { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; transform: translate(-50%, -50%); border: 2px solid var(--surface); }
+.track .dot.s { background: var(--accent); }
+.track .dot.o { background: var(--other); }
+.gaptext { margin: 0; font-size: 0.92rem; }
+.legend { display: flex; gap: 14px; font-size: 0.78rem; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+
+.btn { font: inherit; font-weight: 600; font-size: 1rem; border: 0; border-radius: 12px; padding: 14px 16px; cursor: pointer; background: var(--accent); color: var(--surface); width: 100%; }
+.btn.secondary { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.share .btn { padding: 11px 12px; font-size: 0.95rem; }
+#copyFallback { min-height: 160px; font-size: 13px; }
+.ziel { min-height: 0; resize: none; background: transparent; border: 1px dashed var(--line); color: var(--muted); padding: 6px 10px; line-height: 1.35; }
+.ziel:focus { color: var(--ink); border-style: solid; }
+.btn:disabled { opacity: 0.5; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+
+.editing-banner { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--accent-soft); color: var(--accent); border-radius: 10px; padding: 8px 12px; font-size: 0.88rem; font-weight: 600; }
+.editing-banner button { font: inherit; background: none; border: 0; color: var(--accent); text-decoration: underline; cursor: pointer; }
+
+/* Verlauf */
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; }
+.stat b { font-family: var(--font-display); font-size: 1.6rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 0.8rem; color: var(--muted); }
+.stat.s b { color: var(--accent); }
+.stat.o b { color: var(--other); }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart text { fill: var(--muted); font-family: var(--font-body); font-size: 11px; }
+.split { display: flex; height: 34px; border-radius: 10px; overflow: hidden; gap: 2px; }
+.split span { display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 1rem; min-width: 28px; }
+.split .up, .split-legend i.up { background: var(--other); color: var(--surface); }
+.split .eq, .split-legend i.eq { background: var(--line); color: var(--ink); }
+.split .down, .split-legend i.down { background: var(--accent); color: var(--surface); }
+.split-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.78rem; color: var(--muted); }
+.split-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.empty { color: var(--muted); text-align: center; padding: 20px 8px; margin: 0; }
+
+.daygroup { display: grid; gap: 8px; }
+.daygroup h3 { margin: 6px 0 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.entry { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
+.entry summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.entry summary::-webkit-details-marker { display: none; }
+.entry .emo { font-size: 1.5rem; }
+.entry .ttl { min-width: 0; display: grid; }
+.entry .ttl strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entry .ttl small { color: var(--muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill { font-size: 0.75rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--bg); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pill.up { background: var(--other-soft); color: var(--other); }
+.pill.down { background: var(--accent-soft); color: var(--accent); }
+.pill.note { background: var(--accent); color: var(--surface); }
+.detail { display: grid; gap: 8px; font-size: 0.92rem; padding-top: 4px; }
+.detail p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.detail .k { color: var(--muted); font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.detail .actions { display: flex; gap: 8px; }
+.detail .actions button { font: inherit; font-size: 0.85rem; background: var(--bg); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.detail .actions button.danger { color: var(--warn); }
+.detail .actions button.danger.armed { background: var(--warn); color: var(--surface); border-color: var(--warn); }
+
+.notice { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 12px; font-size: 0.88rem; color: var(--muted); }
+
+/* Tab-Leiste */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  background: var(--surface); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
+}
+.tab { font: inherit; background: none; border: 0; color: var(--muted); display: grid; justify-items: center; gap: 2px; padding: 6px 0; cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+.tab svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tab[aria-selected="true"] { color: var(--accent); }
+
+.toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 0.9rem; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 6; max-width: calc(100% - 32px); text-align: center; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Feedback-Tagebuch</h1>
+    <label class="goal" for="ziel"><b>Handlungsziel</b></label>
+    <textarea id="ziel" class="ziel" rows="2" placeholder="Tippe hier dein Ziel ein …"></textarea>
+  </header>
+
+  <div class="notice" id="dbNotice" hidden>Speichern ist in diesem Browser nicht möglich, zum Beispiel im privaten Modus. Öffne die App in Safari im normalen Modus.</div>
+
+  <!-- Feedback -->
+  <section class="view" id="v-feedback" aria-labelledby="h-feedback">
+    <h2 id="h-feedback">Neues Feedback</h2>
+    <div class="editing-banner" id="fbEditing" hidden>
+      <span>Du bearbeitest einen Eintrag</span>
+      <button type="button" id="fbCancelEdit">Abbrechen</button>
+    </div>
+    <form id="fbForm" class="view" novalidate>
+      <div class="card">
+        <div class="field">
+          <label for="fbDate">📅 Datum</label>
+          <input type="date" id="fbDate" required>
+        </div>
+        <div class="field">
+          <label for="fbTermin">📍 Termin</label>
+          <input type="text" id="fbTermin" placeholder="Team-Meeting" autocomplete="off">
+          <div class="chips" id="fbTerminChips"></div>
+        </div>
+        <div class="field">
+          <label for="fbRolle">👤 Von wem <span class="hint">· nur Rolle</span></label>
+          <input type="text" id="fbRolle" placeholder="Kolleg*in" autocomplete="off">
+          <div class="chips" id="fbRolleChips"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label for="fbInhalt">💬 Feedback</label>
+          <textarea id="fbInhalt" placeholder="Was wurde gesagt?"></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <span class="label" id="fbGefuehlLabel">Wie ging es mir damit?</span>
+          <div class="faces" id="fbGefuehl" role="group" aria-labelledby="fbGefuehlLabel"></div>
+        </div>
+        <div class="field">
+          <textarea id="fbGefuehlNotiz" aria-label="Notiz zum Gefühl" placeholder="Notiz (optional)"></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="label">🪞 Realitätscheck</span>
+        <div class="slider-row self">
+          <div class="slider-head"><label for="fbMatch">Passt das Feedback zu meinem Gefühl?</label><output id="fbMatchOut" for="fbMatch">50 %</output></div>
+          <input type="range" id="fbMatch" min="0" max="100" step="10" value="50">
+          <div class="scale-ends"><span>gar nicht</span><span>genau</span></div>
+          <p class="gaptext" id="fbGapText" aria-live="polite"></p>
+        </div>
+        <div class="field">
+          <span class="label" id="fbRichtungLabel">Das Feedback war …</span>
+          <div class="faces three" id="fbRichtung" role="group" aria-labelledby="fbRichtungLabel"></div>
+        </div>
+        <div class="field">
+          <label for="fbUeberrascht">😮 Was überrascht mich?</label>
+          <textarea id="fbUeberrascht"></textarea>
+        </div>
+      </div>
+
+      <button class="btn" type="submit" id="fbSave">Feedback speichern</button>
+    </form>
+  </section>
+
+  <!-- Tagesbilanz -->
+  <section class="view" id="v-tag" aria-labelledby="h-tag" hidden>
+    <div>
+      <h2 id="h-tag">Tagesbilanz</h2>
+      <p class="goal">Wie ging es mir heute mit dem Feedback-Einholen?</p>
+    </div>
+    <form id="dayForm" class="view" novalidate>
+      <div class="card">
+        <div class="field">
+          <label for="dayDate">📅 Tag</label>
+          <input type="date" id="dayDate" required>
+        </div>
+        <div class="field">
+          <span class="label" id="dayNoteLabel">🎓 Meine Note für heute</span>
+          <div class="grades" id="dayNote" role="group" aria-labelledby="dayNoteLabel"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="field">
+          <span class="label" id="dayEmoLabel">So fühlte sich das Feedback-Einholen an</span>
+          <div class="faces wide" id="dayEmo" role="group" aria-labelledby="dayEmoLabel"></div>
+        </div>
+        <div class="field">
+          <input type="text" id="daySatz" aria-label="Ein Satz zur Hausaufgabe heute" placeholder="Heute war Feedback einholen für mich …" autocomplete="off">
+        </div>
+        <div class="field">
+          <textarea id="dayNotiz" aria-label="Notiz" placeholder="Notiz (optional)"></textarea>
+        </div>
+      </div>
+      <button class="btn" type="submit" id="daySave">Tagesbilanz speichern</button>
+    </form>
+  </section>
+
+  <!-- Verlauf -->
+  <section class="view" id="v-verlauf" aria-labelledby="h-verlauf" hidden>
+    <h2 id="h-verlauf">Verlauf</h2>
+    <div class="row share">
+      <button type="button" class="btn" id="btnPdf">📄 Als PDF</button>
+      <button type="button" class="btn secondary" id="btnCopy">📋 Text kopieren</button>
+    </div>
+    <p class="hint">🔒 Deine Einträge bleiben nur auf diesem Gerät. Sichere sie ab und zu als PDF.</p>
+    <textarea id="copyFallback" aria-label="Auswertung als Text" readonly hidden></textarea>
+    <div class="stats">
+      <div class="stat"><b id="stCount">–</b><span>💬 Feedbacks</span></div>
+      <div class="stat"><b id="stNote">–</b><span>🎓 Ø Tagesnote</span></div>
+      <div class="stat s"><b id="stMatch">–</b><span>🪞 Ø passt zu mir</span></div>
+      <div class="stat o"><b id="stBesser">–</b><span>⬆️ besser als gedacht</span></div>
+    </div>
+    <div class="card chart">
+      <span class="label">🪞 Feedback und mein Gefühl</span>
+      <div id="gapSplit"></div>
+      <div id="gapChart"></div>
+    </div>
+    <div class="card chart">
+      <span class="label">🎓 Tagesnoten</span>
+      <div id="noteChart"></div>
+    </div>
+    <div id="list" class="view"></div>
+  </section>
+</div>
+
+<nav class="tabbar" role="tablist" aria-label="Bereiche">
+  <button class="tab" role="tab" data-view="feedback" aria-selected="true">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Feedback
+  </button>
+  <button class="tab" role="tab" data-view="tag" aria-selected="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>Tagesbilanz
+  </button>
+  <button class="tab" role="tab" data-view="verlauf" aria-selected="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Verlauf
+  </button>
+</nav>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const TERMINE = ["Team-Meeting", "Einzelgespräch", "Workshop", "Projekt"];
+const ROLLEN = ["Kolleg*in", "Führungskraft", "Kund*in"];
+const GEFUEHLE = [
+  { v: 1, e: "😣", t: "belastend" }, { v: 2, e: "😕", t: "unangenehm" }, { v: 3, e: "😐", t: "neutral" },
+  { v: 4, e: "🙂", t: "gut" }, { v: 5, e: "😊", t: "sehr gut" }
+];
+const TAG_EMOS = [
+  { v: "stolz", e: "💪", t: "stolz" }, { v: "froh", e: "😊", t: "froh" }, { v: "ruhig", e: "😌", t: "ruhig" }, { v: "neutral", e: "😐", t: "neutral" },
+  { v: "unsicher", e: "😕", t: "unsicher" }, { v: "angespannt", e: "😬", t: "angespannt" }, { v: "erschöpft", e: "😮‍💨", t: "erschöpft" }, { v: "überfordert", e: "🤯", t: "überfordert" }
+];
+const RICHTUNG = [
+  { v: "besser", e: "⬆️", t: "besser als gedacht" }, { v: "gleich", e: "↔️", t: "wie gedacht" }, { v: "kritischer", e: "⬇️", t: "kritischer als gedacht" }
+];
+const NOTEN = ["sehr gut", "gut", "befried.", "ausreich.", "mangelh.", "ungenüg."];
+
+const state = { db: null, feedback: [], tage: {}, editId: null, fbGefuehl: null, fbRichtung: null, dayNote: null, dayEmo: null };
+
+const pad = n => String(n).padStart(2, "0");
+const iso = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const today = () => iso(new Date());
+const parseIso = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const fmtDay = s => parseIso(s).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+const fmtShort = s => parseIso(s).toLocaleDateString("de-DE", { day: "numeric", month: "numeric" });
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const num = (n, d = 1) => n == null ? "–" : n.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+
+/* Tabs */
+function showView(name) {
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === name)));
+  ["feedback", "tag", "verlauf"].forEach(v => { $("#v-" + v).hidden = v !== name; });
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
+
+/* Bausteine */
+function chips(box, values, input) {
+  box.innerHTML = values.map(v => `<button type="button" class="chip" aria-pressed="false">${esc(v)}</button>`).join("");
+  const sync = () => box.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c.textContent === input.value.trim())));
+  box.addEventListener("click", e => {
+    const c = e.target.closest(".chip"); if (!c) return;
+    input.value = c.textContent; sync();
+  });
+  input.addEventListener("input", sync);
+  return sync;
+}
+function picker(box, items, key, render) {
+  box.innerHTML = items.map(render).join("");
+  const sync = () => box.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === String(state[key]))));
+  box.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const v = isNaN(+b.dataset.v) ? b.dataset.v : +b.dataset.v;
+    state[key] = state[key] === v ? null : v;
+    sync();
+  });
+  return sync;
+}
+const faceBtn = i => `<button type="button" class="face" data-v="${esc(i.v)}" aria-pressed="false" aria-label="${esc(i.t)}"><span>${i.e}</span><span>${esc(i.t)}</span></button>`;
+
+const syncTermin = chips($("#fbTerminChips"), TERMINE, $("#fbTermin"));
+const syncRolle = chips($("#fbRolleChips"), ROLLEN, $("#fbRolle"));
+const syncGefuehl = picker($("#fbGefuehl"), GEFUEHLE, "fbGefuehl", faceBtn);
+const syncRichtung = picker($("#fbRichtung"), RICHTUNG, "fbRichtung", faceBtn);
+const syncDayEmo = picker($("#dayEmo"), TAG_EMOS, "dayEmo", faceBtn);
+const syncDayNote = picker($("#dayNote"), NOTEN.map((t, i) => ({ v: i + 1, t })), "dayNote",
+  i => `<button type="button" class="grade" data-v="${i.v}" aria-pressed="false" aria-label="Note ${i.v}, ${esc(i.t)}"><b>${i.v}</b><small>${esc(i.t)}</small></button>`);
+
+/* Realitätscheck */
+function matchSentence(m) {
+  if (m >= 80) return "Deckt sich mit meinem Gefühl.";
+  if (m >= 50) return "Deckt sich teilweise.";
+  if (m >= 20) return "Weicht deutlich ab.";
+  return "Ganz anders als mein Gefühl.";
+}
+function updateGap() {
+  const m = +$("#fbMatch").value;
+  $("#fbMatchOut").textContent = m + " %";
+  $("#fbGapText").textContent = matchSentence(m);
+}
+$("#fbMatch").addEventListener("input", updateGap);
+
+/* Feedback-Formular */
+function resetFeedbackForm() {
+  state.editId = null;
+  $("#fbForm").reset();
+  $("#fbDate").value = today();
+  $("#fbMatch").value = 50;
+  state.fbGefuehl = null; state.fbRichtung = null;
+  syncTermin(); syncRolle(); syncGefuehl(); syncRichtung(); updateGap();
+  $("#fbEditing").hidden = true;
+  $("#fbSave").textContent = "Feedback speichern";
+}
+function loadFeedbackIntoForm(f) {
+  state.editId = f.id;
+  $("#fbDate").value = f.datum || today();
+  $("#fbTermin").value = f.termin || "";
+  $("#fbRolle").value = f.rolle || "";
+  $("#fbInhalt").value = f.inhalt || "";
+  $("#fbGefuehlNotiz").value = f.gefuehlNotiz || "";
+  $("#fbMatch").value = f.uebereinstimmung ?? 50;
+  $("#fbUeberrascht").value = f.ueberraschung || "";
+  state.fbGefuehl = f.gefuehl ?? null;
+  state.fbRichtung = f.richtung ?? null;
+  syncTermin(); syncRolle(); syncGefuehl(); syncRichtung(); updateGap();
+  $("#fbEditing").hidden = false;
+  $("#fbSave").textContent = "Änderungen speichern";
+  showView("feedback");
+}
+$("#fbCancelEdit").addEventListener("click", resetFeedbackForm);
+
+$("#fbForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!$("#fbInhalt").value.trim()) { toast("Bitte trag ein, was das Feedback war."); $("#fbInhalt").focus(); return; }
+  if (!state.db) { toast("Speichern ist gerade nicht möglich."); return; }
+  const existing = state.editId && state.feedback.find(f => f.id === state.editId);
+  const body = {
+    datum: $("#fbDate").value || today(),
+    termin: $("#fbTermin").value.trim(),
+    rolle: $("#fbRolle").value.trim(),
+    inhalt: $("#fbInhalt").value.trim(),
+    gefuehl: state.fbGefuehl,
+    gefuehlNotiz: $("#fbGefuehlNotiz").value.trim(),
+    uebereinstimmung: +$("#fbMatch").value,
+    richtung: state.fbRichtung,
+    ueberraschung: $("#fbUeberrascht").value.trim(),
+    erstellt: existing?.erstellt || new Date().toISOString(),
+    geaendert: new Date().toISOString()
+  };
+  const btn = $("#fbSave"); btn.disabled = true;
+  try {
+    const col = state.db.collection("feedback");
+    await (state.editId ? col.doc(state.editId) : col.doc()).set(body);
+    toast(state.editId ? "Änderungen gespeichert" : "Feedback gespeichert");
+    resetFeedbackForm();
+    window.scrollTo(0, 0);
+  } catch (err) {
+    toast(err?.code === "quota_exceeded" ? "Speicher ist voll." : "Speichern hat nicht geklappt. Bitte nochmal versuchen.");
+  } finally { btn.disabled = false; }
+});
+
+/* Tagesbilanz */
+function loadDay(dateStr) {
+  const d = state.tage[dateStr];
+  state.dayNote = d?.note ?? null;
+  state.dayEmo = d?.emoji ?? null;
+  $("#daySatz").value = d?.satz || "";
+  $("#dayNotiz").value = d?.notiz || "";
+  syncDayNote(); syncDayEmo();
+  $("#daySave").textContent = d ? "Tagesbilanz aktualisieren" : "Tagesbilanz speichern";
+}
+$("#dayDate").addEventListener("change", () => loadDay($("#dayDate").value || today()));
+
+$("#dayForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!state.dayNote) { toast("Bitte gib eine Schulnote."); return; }
+  if (!state.db) { toast("Speichern ist gerade nicht möglich."); return; }
+  const datum = $("#dayDate").value || today();
+  const body = {
+    datum, note: state.dayNote, emoji: state.dayEmo,
+    satz: $("#daySatz").value.trim(), notiz: $("#dayNotiz").value.trim(),
+    geaendert: new Date().toISOString()
+  };
+  const btn = $("#daySave"); btn.disabled = true;
+  try {
+    await state.db.collection("tage").doc(datum).set(body);
+    toast("Tagesbilanz gespeichert");
+    $("#daySave").textContent = "Tagesbilanz aktualisieren";
+  } catch (err) {
+    toast("Speichern hat nicht geklappt. Bitte nochmal versuchen.");
+  } finally { btn.disabled = false; }
+});
+
+/* Verlauf */
+function gapPill(f) {
+  const r = emoOf(RICHTUNG, f.richtung);
+  const cls = f.richtung === "besser" ? "up" : f.richtung === "kritischer" ? "down" : "";
+  return `<span class="pill ${cls}">${r ? r.e + " " : ""}${f.uebereinstimmung ?? "–"} %</span>`;
+}
+const emoOf = (list, v) => list.find(i => i.v === v);
+
+function renderCharts() {
+  // Selbst/Fremd je Feedback (chronologisch)
+  const fb = [...state.feedback].sort((a, b) => (a.datum + a.erstellt).localeCompare(b.datum + b.erstellt));
+  const gc = $("#gapChart");
+  if (!fb.length) { gc.innerHTML = `<p class="empty">💬 Dein erstes Feedback kommt hier hin.</p>`; }
+  else {
+    // Übereinstimmung je Feedback, Farbe = Richtung
+    const W = 320, H = 150, L = 34, R = 10, T = 10, B = 22;
+    const n = fb.length, step = n > 1 ? (W - L - R) / (n - 1) : 0;
+    const x = i => n > 1 ? L + i * step : (L + W - R) / 2;
+    const y = v => T + (100 - v) / 100 * (H - T - B);
+    const col = r => r === "besser" ? "var(--other)" : r === "kritischer" ? "var(--accent)" : "var(--muted)";
+    let g = "";
+    [0, 50, 100].forEach(v => { g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v} %</text>`; });
+    if (n > 1) g += `<polyline points="${fb.map((f, i) => x(i) + "," + y(f.uebereinstimmung ?? 50)).join(" ")}" fill="none" stroke="var(--line)" stroke-width="2"/>`;
+    fb.forEach((f, i) => { g += `<circle cx="${x(i)}" cy="${y(f.uebereinstimmung ?? 50)}" r="6" fill="${col(f.richtung)}"/>`; });
+    const labelIdx = n <= 6 ? fb.map((_, i) => i) : [0, Math.floor((n - 1) / 2), n - 1];
+    labelIdx.forEach(i => { g += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${fmtShort(fb[i].datum)}</text>`; });
+    gc.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wie gut jedes Feedback zu meinem Gefühl passte, in Prozent">${g}</svg>`;
+  }
+
+  // Wie oft wich das Feedback von meinem Gefühl ab – und in welche Richtung?
+  const up = fb.filter(f => f.richtung === "besser").length, down = fb.filter(f => f.richtung === "kritischer").length, eq = fb.filter(f => f.richtung === "gleich").length;
+  $("#gapSplit").innerHTML = !(up + down + eq) ? "" : `
+    <div class="split">${[[up, "up"], [eq, "eq"], [down, "down"]].filter(([n]) => n).map(([n, c]) => `<span class="${c}" style="flex:${n}">${n}</span>`).join("")}</div>
+    <div class="split-legend"><span><i class="up"></i>⬆️ besser als gedacht</span><span><i class="eq"></i>↔️ wie gedacht</span><span><i class="down"></i>⬇️ kritischer</span></div>`;
+
+  // Tagesnoten: ein Platz pro Tag vom ersten Eintrag bis heute
+  const nc = $("#noteChart");
+  const dated = Object.values(state.tage).map(d => d.datum).sort();
+  if (!dated.length) { nc.innerHTML = `<p class="empty">🌙 Abends unter „Tagesbilanz“ eintragen.</p>`; return; }
+  const slots = [];
+  const end = [dated[dated.length - 1], today()].sort().pop();
+  for (let d = parseIso(dated[0]); iso(d) <= end; d.setDate(d.getDate() + 1)) slots.push(iso(d));
+  const W = 320, H = 140, L = 22, R = 8, T = 8, B = 22;
+  const slot = (W - L - R) / slots.length, bw = Math.max(3, Math.min(24, slot * 0.65));
+  const y = note => T + (6 - note) / 5 * (H - T - B); // Note 1 = höchster Balken
+  const base = H - B, t0 = today();
+  let g = "";
+  [1, 3, 6].forEach(v => { g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`; });
+  slots.forEach((s, i) => {
+    const cx = L + slot * i + slot / 2, d = state.tage[s];
+    if (d) { const top = y(d.note) - (d.note === 6 ? 2 : 0); g += `<rect x="${cx - bw / 2}" y="${top}" width="${bw}" height="${Math.max(base - top, 2)}" rx="3" fill="var(--accent)"/>`; }
+    else if (s > t0) g += `<rect x="${cx - bw / 2}" y="${base - 2}" width="${bw}" height="2" rx="1" fill="var(--line)"/>`;
+  });
+  const li = [0, slots.length - 1];
+  const ti = slots.indexOf(t0); if (ti > 0 && ti < slots.length - 1 && ti > 3 && ti < slots.length - 4) li.splice(1, 0, ti);
+  li.forEach(i => { g += `<text x="${L + slot * i + slot / 2}" y="${H - 6}" text-anchor="${i === 0 ? "start" : i === slots.length - 1 ? "end" : "middle"}">${slots[i] === t0 ? "heute" : fmtShort(slots[i])}</text>`; });
+  nc.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tagesnoten bis 16. November, Note 1 ist der höchste Balken">${g}</svg>`;
+}
+
+function renderList() {
+  const byDay = {};
+  state.feedback.forEach(f => { (byDay[f.datum] ||= { fb: [], tag: null }).fb.push(f); });
+  Object.values(state.tage).forEach(t => { (byDay[t.datum] ||= { fb: [], tag: null }).tag = t; });
+  const dates = Object.keys(byDay).sort().reverse();
+  const list = $("#list");
+  if (!dates.length) { list.innerHTML = ""; return; }
+  list.innerHTML = dates.map(d => {
+    const g = byDay[d];
+    let html = `<div class="daygroup"><h3>${esc(fmtDay(d))}</h3>`;
+    if (g.tag) {
+      const em = emoOf(TAG_EMOS, g.tag.emoji);
+      html += `<details class="entry"><summary><span class="emo">${em ? em.e : "🌙"}</span><span class="ttl"><strong>Tagesbilanz</strong><small>${esc(g.tag.satz || (em ? em.t : ""))}</small></span><span class="pill note">Note ${g.tag.note}</span></summary>
+        <div class="detail">
+          ${g.tag.satz ? `<div><div class="k">Satz</div><p>${esc(g.tag.satz)}</p></div>` : ""}
+          ${g.tag.notiz ? `<div><div class="k">Notiz</div><p>${esc(g.tag.notiz)}</p></div>` : ""}
+          <div class="actions"><button type="button" data-act="editDay" data-id="${esc(d)}">Bearbeiten</button><button type="button" class="danger" data-act="delDay" data-id="${esc(d)}">Löschen</button></div>
+        </div></details>`;
+    }
+    g.fb.sort((a, b) => (b.erstellt || "").localeCompare(a.erstellt || "")).forEach(f => {
+      const em = emoOf(GEFUEHLE, f.gefuehl);
+      const title = [f.termin, f.rolle].filter(Boolean).join(" · ") || "Feedback";
+      html += `<details class="entry"><summary><span class="emo">${em ? em.e : "💬"}</span><span class="ttl"><strong>${esc(title)}</strong><small>${esc(f.inhalt)}</small></span>${gapPill(f)}</summary>
+        <div class="detail">
+          <div><div class="k">Feedback</div><p>${esc(f.inhalt)}</p></div>
+          ${em || f.gefuehlNotiz ? `<div><div class="k">Wie ging es mir damit</div><p>${em ? esc(em.e + " " + em.t) : ""}${em && f.gefuehlNotiz ? " · " : ""}${esc(f.gefuehlNotiz)}</p></div>` : ""}
+          <div><div class="k">Realitätscheck</div><p>${f.uebereinstimmung ?? "–"} % · ${esc(matchSentence(f.uebereinstimmung ?? 50))}${emoOf(RICHTUNG, f.richtung) ? " " + esc(emoOf(RICHTUNG, f.richtung).e + " " + emoOf(RICHTUNG, f.richtung).t) : ""}</p></div>
+          ${f.ueberraschung ? `<div><div class="k">Was überrascht mich</div><p>${esc(f.ueberraschung)}</p></div>` : ""}
+          <div class="actions"><button type="button" data-act="editFb" data-id="${esc(f.id)}">Bearbeiten</button><button type="button" class="danger" data-act="delFb" data-id="${esc(f.id)}">Löschen</button></div>
+        </div></details>`;
+    });
+    return html + `</div>`;
+  }).join("");
+}
+
+$("#list").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-act]"); if (!b || !state.db) return;
+  const { act, id } = b.dataset;
+  if (act === "editFb") { const f = state.feedback.find(x => x.id === id); if (f) loadFeedbackIntoForm(f); return; }
+  if (act === "editDay") { $("#dayDate").value = id; loadDay(id); showView("tag"); return; }
+  if (!b.classList.contains("armed")) {
+    b.classList.add("armed"); b.textContent = "Wirklich löschen?";
+    setTimeout(() => { b.classList.remove("armed"); b.textContent = "Löschen"; }, 4000);
+    return;
+  }
+  try {
+    await state.db.collection(act === "delFb" ? "feedback" : "tage").doc(id).delete();
+    toast("Gelöscht");
+  } catch { toast("Löschen hat nicht geklappt."); }
+});
+
+function renderStats() {
+  const fb = state.feedback, days = Object.values(state.tage);
+  $("#stCount").textContent = fb.length;
+  const m = avg(fb.map(f => f.uebereinstimmung).filter(v => v != null));
+  $("#stMatch").textContent = m == null ? "–" : Math.round(m) + " %";
+  $("#stBesser").textContent = fb.filter(f => f.richtung === "besser").length;
+  $("#stNote").textContent = num(avg(days.map(d => d.note)));
+}
+function renderAll() { renderStats(); renderCharts(); renderList(); }
+
+/* Teilen: PDF und Text */
+const sortedFeedback = () => [...state.feedback].sort((a, b) => (a.datum + (a.erstellt || "")).localeCompare(b.datum + (b.erstellt || "")));
+const sortedDays = () => Object.values(state.tage).sort((a, b) => a.datum.localeCompare(b.datum));
+const fmtLong = s => parseIso(s).toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+
+function summary() {
+  const fb = state.feedback, days = Object.values(state.tage);
+  const m = avg(fb.map(f => f.uebereinstimmung).filter(v => v != null));
+  return {
+    count: fb.length,
+    note: avg(days.map(d => d.note)),
+    match: m == null ? null : Math.round(m),
+    besser: fb.filter(f => f.richtung === "besser").length,
+    gleich: fb.filter(f => f.richtung === "gleich").length,
+    kritischer: fb.filter(f => f.richtung === "kritischer").length
+  };
+}
+
+function buildText() {
+  const s = summary(), L = [];
+  L.push("FEEDBACK-TAGEBUCH"); if (getZiel()) L.push("Handlungsziel: " + getZiel()); L.push("");
+  L.push(`Feedbacks: ${s.count} · Ø Tagesnote: ${num(s.note)} · Ø passt zu meinem Gefühl: ${s.match ?? "–"} %`);
+  L.push(`Feedback war besser als gedacht: ${s.besser} · wie gedacht: ${s.gleich} · kritischer: ${s.kritischer}`, "");
+  sortedFeedback().forEach(f => {
+    const g = emoOf(GEFUEHLE, f.gefuehl), r = emoOf(RICHTUNG, f.richtung);
+    L.push(`— ${fmtLong(f.datum)} · ${[f.termin, f.rolle].filter(Boolean).join(" · ")}`);
+    L.push(`Feedback: ${f.inhalt}`);
+    if (g || f.gefuehlNotiz) L.push(`Wie ging es mir damit: ${g ? g.e + " " + g.t : ""}${g && f.gefuehlNotiz ? " – " : ""}${f.gefuehlNotiz || ""}`);
+    L.push(`Realitätscheck: ${f.uebereinstimmung ?? "–"} % passt zu meinem Gefühl${r ? " · " + r.t : ""}`);
+    if (f.ueberraschung) L.push(`Was überrascht mich: ${f.ueberraschung}`);
+    L.push("");
+  });
+  const days = sortedDays();
+  if (days.length) {
+    L.push("TAGESBILANZ");
+    days.forEach(d => {
+      const e = emoOf(TAG_EMOS, d.emoji);
+      L.push(`${fmtLong(d.datum)}: Note ${d.note}${e ? " · " + e.e + " " + e.t : ""}${d.satz ? " · " + d.satz : ""}${d.notiz ? "\n  " + d.notiz : ""}`);
+    });
+  }
+  return L.join("\n");
+}
+
+$("#btnCopy").addEventListener("click", () => {
+  const text = buildText();
+  const fallback = () => { const t = $("#copyFallback"); t.value = text; t.hidden = false; t.focus(); t.select(); toast("Text markiert – jetzt kopieren"); };
+  try { navigator.clipboard.writeText(text).then(() => toast("Kopiert – in Mail oder Nachricht einfügen"), fallback); }
+  catch { fallback(); }
+});
+
+// PDF kennt keine Emojis: Text dafür bereinigen
+const pdfText = s => String(s ?? "")
+  .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, "")
+  .replace(/[„“”]/g, '"').replace(/[‚‘’]/g, "'").replace(/[–—]/g, "-").replace(/·/g, "|").trim();
+
+function buildPdf() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const BURG = [122, 31, 53], BLUE = [79, 109, 138], INK = [42, 30, 33], MUTED = [111, 98, 102], LINE = [230, 222, 221];
+  const X = 18, W = 174, BOTTOM = 280;
+  let y = 20;
+  const need = h => { if (y + h > BOTTOM) { doc.addPage(); y = 20; } };
+  const text = (str, { size = 10, bold = false, color = INK, gap = 1.5, indent = 0 } = {}) => {
+    doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(size); doc.setTextColor(...color);
+    const lines = doc.splitTextToSize(pdfText(str), W - indent);
+    const lh = size * 0.42;
+    lines.forEach(l => { need(lh); doc.text(l, X + indent, y); y += lh; });
+    y += gap;
+  };
+
+  const s = summary(), fb = sortedFeedback(), days = sortedDays();
+  doc.setFillColor(...BURG); doc.rect(0, 0, 210, 6, "F");
+  y = 22;
+  text("Mein Feedback-Tagebuch", { size: 22, bold: true, color: BURG, gap: 2 });
+  if (getZiel()) text("Handlungsziel: " + getZiel(), { size: 10, color: MUTED, gap: 1 });
+  text(`Stand: ${fmtLong(today())}`, { size: 9, color: MUTED, gap: 6 });
+
+  // Kennzahlen als Kacheln
+  const tiles = [[String(s.count), "Feedbacks"], [num(s.note), "Durchschnitt Tagesnote"], [s.match == null ? "-" : s.match + " %", "passt zu meinem Gefühl"], [String(s.besser), "besser als gedacht"]];
+  const tw = (W - 9) / 4;
+  need(22);
+  tiles.forEach(([v, l], i) => {
+    const tx = X + i * (tw + 3);
+    doc.setDrawColor(...LINE); doc.roundedRect(tx, y, tw, 20, 2, 2, "S");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...(i === 3 ? BLUE : BURG)); doc.text(v, tx + 4, y + 9);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text(doc.splitTextToSize(l, tw - 8), tx + 4, y + 14);
+  });
+  y += 28;
+
+  // Richtung als Balken
+  const tot = s.besser + s.gleich + s.kritischer;
+  if (tot) {
+    text("Das Feedback war ...", { size: 11, bold: true, gap: 2 });
+    need(16);
+    let bx = X;
+    [[s.besser, BLUE, "besser als gedacht"], [s.gleich, LINE, "wie gedacht"], [s.kritischer, BURG, "kritischer als gedacht"]].forEach(([n, c]) => {
+      if (!n) return;
+      const bw = W * n / tot;
+      doc.setFillColor(...c); doc.rect(bx, y, bw, 8, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...(c === LINE ? INK : [255, 255, 255]));
+      doc.text(String(n), bx + bw / 2, y + 5.5, { align: "center" });
+      bx += bw;
+    });
+    y += 12;
+    let lx = X;
+    [[BLUE, `besser als gedacht (${s.besser})`], [LINE, `wie gedacht (${s.gleich})`], [BURG, `kritischer als gedacht (${s.kritischer})`]].forEach(([c, l]) => {
+      doc.setFillColor(...c); doc.rect(lx, y - 2.5, 3, 3, "F");
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...MUTED); doc.text(l, lx + 5, y);
+      lx += doc.getTextWidth(l) + 12;
+    });
+    y += 8;
+  }
+
+  // Tagesnoten
+  if (days.length) {
+    text("Tagesnoten (1 = höchster Balken)", { size: 11, bold: true, gap: 2 });
+    const H = 30, slot = Math.min(12, W / days.length), bw = slot * 0.65;
+    need(H + 8);
+    doc.setDrawColor(...LINE); doc.line(X, y + H, X + W, y + H);
+    days.forEach((d, i) => {
+      const h = (7 - d.note) / 6 * H, bx = X + i * slot + (slot - bw) / 2;
+      doc.setFillColor(...BURG); doc.rect(bx, y + H - h, bw, h, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(7); doc.setTextColor(...INK); doc.text(String(d.note), bx + bw / 2, y + H - h - 1, { align: "center" });
+      if (days.length <= 14 || i % 2 === 0) { doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...MUTED); doc.text(fmtShort(d.datum), bx + bw / 2, y + H + 4, { align: "center" }); }
+    });
+    y += H + 10;
+  }
+
+  // Einzelne Feedbacks
+  if (fb.length) {
+    need(14);
+    text("Feedbacks", { size: 14, bold: true, color: BURG, gap: 3 });
+    fb.forEach(f => {
+      const g = emoOf(GEFUEHLE, f.gefuehl), r = emoOf(RICHTUNG, f.richtung);
+      need(30);
+      doc.setDrawColor(...LINE); doc.line(X, y - 3, X + W, y - 3);
+      y += 2;
+      text(`${fmtLong(f.datum)}  |  ${[f.termin, f.rolle].filter(Boolean).join(" | ")}`, { size: 9, bold: true, color: MUTED, gap: 1.5 });
+      text(f.inhalt, { size: 11, bold: true, gap: 2 });
+      if (g || f.gefuehlNotiz) text(`Wie ging es mir damit: ${g ? g.t : ""}${g && f.gefuehlNotiz ? " - " : ""}${f.gefuehlNotiz || ""}`, { size: 9.5, gap: 1.5 });
+      text(`Realitätscheck: ${f.uebereinstimmung ?? "-"} % passt zu meinem Gefühl${r ? " | " + r.t : ""}`, { size: 9.5, color: r?.v === "besser" ? BLUE : BURG, gap: 1.5 });
+      if (f.ueberraschung) text(`Was überrascht mich: ${f.ueberraschung}`, { size: 9.5, gap: 1.5 });
+      y += 5;
+    });
+  }
+
+  // Tagesbilanzen
+  if (days.length) {
+    need(14);
+    text("Tagesbilanz", { size: 14, bold: true, color: BURG, gap: 3 });
+    days.forEach(d => {
+      const e = emoOf(TAG_EMOS, d.emoji);
+      text(`${fmtLong(d.datum)}  |  Note ${d.note}${e ? "  |  " + e.t : ""}`, { size: 9.5, bold: true, gap: 1 });
+      if (d.satz) text(d.satz, { size: 9.5, gap: 1, indent: 3 });
+      if (d.notiz) text(d.notiz, { size: 9, color: MUTED, gap: 1, indent: 3 });
+      y += 2.5;
+    });
+  }
+
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text(`Seite ${p} von ${pages}`, X + W, 290, { align: "right" }); }
+  return doc.output("blob");
+}
+
+$("#btnPdf").addEventListener("click", async () => {
+  if (!state.feedback.length && !Object.keys(state.tage).length) { toast("Noch keine Einträge zum Teilen."); return; }
+  if (!window.jspdf) { toast("PDF gerade nicht verfügbar – nutze „Text kopieren“."); return; }
+  const btn = $("#btnPdf"); btn.disabled = true;
+  try {
+    const name = `Feedback-Tagebuch ${today()}.pdf`, blob = buildPdf();
+    const file = new File([blob], name, { type: "application/pdf" });
+    if (navigator.canShare?.({ files: [file] })) {
+      // iPhone: öffnet das Teilen-Menü (Mail, Nachrichten, Drucken, In Dateien sichern)
+      await navigator.share({ files: [file], title: "Mein Feedback-Tagebuch" });
+    } else {
+      const url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast("PDF gespeichert");
+    }
+  } catch (err) {
+    if (err?.name !== "AbortError") toast("PDF hat nicht geklappt. Nutze „Text kopieren“.");
+  } finally { btn.disabled = false; }
+});
+
+/* Speicher: alles bleibt im Browser dieses Geräts, nichts geht an einen Server */
+const STORE_KEY = "feedback-tagebuch-v1";
+function makeLocalDb() {
+  let data;
+  try {
+    data = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
+    localStorage.setItem(STORE_KEY + "-test", "1"); localStorage.removeItem(STORE_KEY + "-test");
+  } catch { return null; }
+  data.feedback ||= {}; data.tage ||= {};
+  const listeners = { feedback: [], tage: [] };
+  const persist = () => localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  const snap = c => ({ docs: Object.entries(data[c]).map(([id, body]) => ({ id, data: () => body })) });
+  const emit = c => listeners[c].forEach(cb => cb(snap(c)));
+  return {
+    collection: c => ({
+      doc: (id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8)) => ({
+        set: async body => { data[c][id] = body; persist(); emit(c); },
+        delete: async () => { delete data[c][id]; persist(); emit(c); }
+      }),
+      onSnapshot: cb => { listeners[c].push(cb); cb(snap(c)); return () => {}; }
+    })
+  };
+}
+
+/* Eigenes Handlungsziel */
+function getZiel() { return $("#ziel").value.trim(); }
+try { $("#ziel").value = localStorage.getItem(STORE_KEY + "-ziel") || ""; } catch {}
+$("#ziel").addEventListener("change", () => {
+  try { localStorage.setItem(STORE_KEY + "-ziel", getZiel()); toast("Ziel gespeichert"); } catch {}
+});
+
+/* Start */
+resetFeedbackForm();
+$("#dayDate").value = today();
+loadDay(today());
+renderAll();
+
+(() => {
+  const db = makeLocalDb();
+  if (!db) { $("#dbNotice").hidden = false; return; }
+  state.db = db;
+  db.collection("feedback").onSnapshot(snap => {
+    state.feedback = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAll();
+  }, () => { $("#dbNotice").hidden = false; });
+  db.collection("tage").onSnapshot(snap => {
+    const prev = state.tage;
+    state.tage = {};
+    snap.docs.forEach(d => { state.tage[d.id] = { datum: d.id, ...d.data() }; });
+    const cur = $("#dayDate").value || today();
+    if (!prev[cur] && state.tage[cur]) loadDay(cur);
+    renderAll();
+  }, () => { $("#dbNotice").hidden = false; });
+})();
+
+/* Offline-Modus und dauerhafter Speicher */
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+navigator.storage?.persist?.().catch(() => {});
+</script>
+</body>
+</html>
